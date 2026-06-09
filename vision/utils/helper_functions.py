@@ -304,7 +304,7 @@ from pathlib import Path
 from typing import Callable, Tuple, Optional
 from torch.utils.data import Dataset
 
-def create_auto_dataloaders(
+def download_torchvision_dataset(
     dataset_class,
     root: str = "data",
     train_transform: Optional[Callable] = None,
