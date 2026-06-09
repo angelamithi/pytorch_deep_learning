@@ -803,3 +803,60 @@ def create_gradio_deployment_files(
     print(f"[INFO] Deployment files created at: {demo_path}")
 
     return demo_path
+import os
+import shutil
+from pathlib import Path
+
+
+def zip_and_download_demo(
+    demo_path: str,
+    zip_name: str = "app.zip",
+    exclude_patterns: tuple = (
+        "*.pyc",
+        "*.ipynb",
+        "*__pycache__*",
+        "*ipynb_checkpoints*",
+    ),
+    download: bool = True,):
+    """
+    Zips a demo folder and optionally downloads it in Google Colab.
+
+    Args:
+        demo_path (str): Path to folder to zip (e.g. "demos/foodvision_mini")
+        zip_name (str): Name of output zip file
+        exclude_patterns (tuple): Patterns to exclude from zip
+        download (bool): Whether to auto-download (Colab only)
+
+    Returns:
+        Path to created zip file
+    """
+
+    demo_path = Path(demo_path)
+    zip_path = demo_path.parent / zip_name
+
+    # -------------------------------------------------------
+    # 1. CREATE ZIP
+    # -------------------------------------------------------
+    if zip_path.exists():
+        zip_path.unlink()  # remove old zip if exists
+
+    print(f"[INFO] Zipping {demo_path} -> {zip_path}")
+
+    shutil.make_archive(
+        base_name=str(zip_path).replace(".zip", ""),
+        format="zip",
+        root_dir=demo_path,
+    )
+
+    # -------------------------------------------------------
+    # 2. DOWNLOAD (COLAB ONLY)
+    # -------------------------------------------------------
+    if download:
+        try:
+            from google.colab import files
+            files.download(str(zip_path))
+            print("[INFO] Download started (Google Colab).")
+        except Exception:
+            print("[INFO] Not running in Google Colab. Zip created locally.")
+
+    return zip_path
