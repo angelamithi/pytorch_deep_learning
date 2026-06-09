@@ -465,3 +465,71 @@ def predict_single_image(
     pred_time = round(timer() - start_time, 5)
 
     return pred_labels_and_probs, pred_time
+
+import random
+from pathlib import Path
+import gradio as gr
+from typing import List, Union
+
+
+def create_gradio_demo(
+    predict_fn,
+    image_paths: List[Union[str, Path]],
+    num_examples: int = 3,
+    num_top_classes: int = 3,
+    title: str = "Image Classification Demo",
+    description: str = "",
+    article: str = "",
+):
+    """
+    Creates a Gradio image classification interface.
+
+    Args:
+        predict_fn: Function that takes a PIL image and returns
+            (prediction_dict, prediction_time).
+        image_paths (List[Union[str, Path]]): List of image paths to use
+            as examples.
+        num_examples (int): Number of example images to display.
+        title (str): Gradio app title.
+        description (str): Gradio app description.
+        article (str): Additional article/footer content.
+
+    Returns:
+        gr.Interface: Configured Gradio interface.
+
+    Example:
+        demo = create_gradio_demo(
+            predict_fn=predict,
+            image_paths=test_data_paths,
+            num_examples=3,
+            title="FoodVision Mini 🍕🥩🍣",
+            description="Classify food images."
+        )
+
+        demo.launch()
+    """
+
+    # Create example list in Gradio format
+    examples = [
+        [str(path)]
+        for path in random.sample(
+            list(image_paths),
+            k=min(num_examples, len(image_paths))
+        )
+    ]
+
+    demo = gr.Interface(
+        fn=predict_fn,
+        inputs=gr.Image(type="pil"),
+        outputs=[
+            gr.Label(num_top_classes=num_top_classes,
+                    label="Predictions"),
+            gr.Number(label="Prediction time (s)")
+        ],
+        examples=examples,
+        title=title,
+        description=description,
+        article=article
+    )
+
+    return demo
