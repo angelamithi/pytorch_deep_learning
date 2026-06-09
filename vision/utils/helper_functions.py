@@ -304,39 +304,35 @@ from pathlib import Path
 from typing import Callable, Tuple, Optional
 from torch.utils.data import Dataset
 
-
-def download_torchvision_dataset(
+def create_auto_dataloaders(
     dataset_class,
     root: str = "data",
     train_transform: Optional[Callable] = None,
     test_transform: Optional[Callable] = None,
-    split_type="train_test",
+    batch_size: int = 32,
+    num_workers: int = os.cpu_count(),
     download: bool = True,
-) -> Tuple[Dataset, Dataset]:
-
-
+):
     """
-    Downloads and prepares a torchvision dataset with train/test splits.
+    Automatically creates DataLoaders for ANY torchvision dataset.
 
-    Args:
-        dataset_class: torchvision dataset class (e.g. datasets.Food101)
-        root (str): Root directory to store data
-        train_transform (Callable): Transform for training data
-        test_transform (Callable): Transform for test data
-        split_type (str): Type of split argument used by dataset
-            (e.g. "train/test" or "standard")
-        download (bool): Whether to download dataset
+    Supports:
+    - split="train/test" datasets (Food101, OxfordPets, etc.)
+    - train=True/False datasets (CIFAR10, MNIST, STL10, etc.)
 
     Returns:
-        Tuple[train_dataset, test_dataset]
+        train_dataloader, test_dataloader, class_names
     """
 
     data_dir = Path(root)
 
+    sig = inspect.signature(dataset_class.__init__)
+    params = sig.parameters
+
     # -------------------------------------------------------
-    # Handle Food101-style datasets (train/test split)
+    # CASE 1: datasets with "split" argument (Food101 style)
     # -------------------------------------------------------
-    if split_type == "train_test":
+    if "split" in params:
 
         train_data = dataset_class(
             root=data_dir,
@@ -353,9 +349,9 @@ def download_torchvision_dataset(
         )
 
     # -------------------------------------------------------
-    # Handle datasets that use train=True/False (e.g. CIFAR10)
+    # CASE 2: datasets with train=True/False (CIFAR10 style)
     # -------------------------------------------------------
-    else:
+    elif "train" in params:
 
         train_data = dataset_class(
             root=data_dir,
@@ -371,10 +367,40 @@ def download_torchvision_dataset(
             download=download
         )
 
+    # -------------------------------------------------------
+    # CASE 3: unsupported dataset type
+    # -------------------------------------------------------
+    else:
+        raise ValueError(f"Dataset {dataset_class} not supported automatically")
+
+    # -------------------------------------------------------
+    # Create class names
+    # -------------------------------------------------------
+    class_names = getattr(train_data, "classes", None)
+
+    # -------------------------------------------------------
+    # Create DataLoaders
+    # -------------------------------------------------------
+    train_dataloader = datasets.DataLoader(
+        train_data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+    test_dataloader = datasets.DataLoader(
+        test_data,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
     print(f"[INFO] Train samples: {len(train_data)}")
     print(f"[INFO] Test samples: {len(test_data)}")
 
-    return train_data, test_data
+    return train_dataloader, test_dataloader, class_names
 
 
 # 1. Create a function to return a list of dictionaries with sample, truth label, prediction, prediction probability and prediction time
