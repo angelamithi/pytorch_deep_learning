@@ -504,65 +504,71 @@ from torch import nn
 import torchvision
 
 
+from timeit import default_timer as timer
+import torch
+from PIL import Image
+
+
 def predict_single_image(
-    img: Image.Image,
-    model: nn.Module,
-    transform: torchvision.transforms.Compose,
-    class_names: List[str],
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
-) -> Tuple[Dict[str, float], float]:
+    img,
+    model,
+    transform,
+    class_names,
+    device="cuda" if torch.cuda.is_available() else "cpu"
+):
     """
-    Transforms and performs a prediction on a single image and returns
-    prediction probabilities and time taken.
+    Makes a prediction on a single image.
 
-    Args:
-        img (PIL.Image.Image): Image to predict on.
-        model (nn.Module): Trained PyTorch model.
-        transform (torchvision.transforms.Compose): Image transformations
-            required by the model.
-        class_names (List[str]): List of class names corresponding to the
-            model's output classes.
-        device (str): Device to run inference on.
-
-    Returns:
-        Tuple[Dict[str, float], float]:
-            - Dictionary mapping class names to probabilities.
-            - Prediction time in seconds.
-
-    Example:
-        pred_dict, pred_time = predict_single_image(
-            img=image,
-            model=vit_model,
-            transform=vit_transforms,
-            class_names=class_names
-        )
+    Handles both:
+    - PIL images (needs transform)
+    - Tensor images (already transformed)
     """
 
-    # Start timer
     start_time = timer()
 
-    # Prepare image
-    img = transform(img).unsqueeze(0).to(device)
+    # -------------------------
+    # 1. Apply transform safely
+    # -------------------------
+    if transform is not None:
+        img = transform(img)
 
-    # Prepare model
-    model = model.to(device)
+    # -------------------------
+    # 2. Ensure tensor format
+    # -------------------------
+    if isinstance(img, Image.Image):
+        raise ValueError("Image is still PIL. Provide transform or preprocessed tensor.")
+
+    if isinstance(img, torch.Tensor):
+        # ensure shape: [1, C, H, W]
+        if img.ndim == 3:
+            img = img.unsqueeze(0)
+
+    else:
+        raise TypeError(f"Unsupported image type: {type(img)}")
+
+    img = img.to(device)
+
+    # -------------------------
+    # 3. Model inference
+    # -------------------------
+    model.to(device)
     model.eval()
 
-    # Inference
     with torch.inference_mode():
         pred_logits = model(img)
         pred_probs = torch.softmax(pred_logits, dim=1)
 
-    # Convert predictions to dictionary
-    pred_labels_and_probs = {
-        class_names[i]: float(pred_probs[0][i].cpu())
+    # -------------------------
+    # 4. Format output
+    # -------------------------
+    pred_dict = {
+        class_names[i]: float(pred_probs[0][i])
         for i in range(len(class_names))
     }
 
-    # Calculate prediction time
     pred_time = round(timer() - start_time, 5)
 
-    return pred_labels_and_probs, pred_time
+    return pred_dict, pred_time
 
 import random
 from pathlib import Path
