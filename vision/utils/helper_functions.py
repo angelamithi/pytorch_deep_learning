@@ -311,24 +311,43 @@ from pathlib import Path
 from typing import Callable, Tuple, Optional
 from torch.utils.data import Dataset
 
+from pathlib import Path
+from typing import Optional, Callable, Tuple
+from torch.utils.data import Dataset
+import inspect
+
+
 def download_torchvision_dataset(
     dataset_class,
     root: str = "data",
     train_transform: Optional[Callable] = None,
     test_transform: Optional[Callable] = None,
-    batch_size: int = 32,
-    num_workers: int = os.cpu_count(),
     download: bool = True,
-):
+) -> Tuple[Dataset, Dataset]:
     """
-    Automatically creates DataLoaders for ANY torchvision dataset.
+    Downloads and prepares a torchvision dataset.
 
     Supports:
     - split="train/test" datasets (Food101, OxfordPets, etc.)
-    - train=True/False datasets (CIFAR10, MNIST, STL10, etc.)
+    - train=True/False datasets (CIFAR10, MNIST, FashionMNIST, etc.)
+
+    Args:
+        dataset_class: Torchvision dataset class.
+        root (str): Root directory for dataset storage.
+        train_transform: Transform for training dataset.
+        test_transform: Transform for testing dataset.
+        download (bool): Whether to download the dataset.
 
     Returns:
-        train_dataloader, test_dataloader, class_names
+        Tuple[Dataset, Dataset]:
+            (train_dataset, test_dataset)
+
+    Example:
+        train_data, test_data = download_torchvision_dataset(
+            dataset_class=datasets.Food101,
+            train_transform=train_transforms,
+            test_transform=test_transforms
+        )
     """
 
     data_dir = Path(root)
@@ -336,78 +355,49 @@ def download_torchvision_dataset(
     sig = inspect.signature(dataset_class.__init__)
     params = sig.parameters
 
-    # -------------------------------------------------------
-    # CASE 1: datasets with "split" argument (Food101 style)
-    # -------------------------------------------------------
+    # Food101-style datasets
     if "split" in params:
 
         train_data = dataset_class(
             root=data_dir,
             split="train",
             transform=train_transform,
-            download=download
+            download=download,
         )
 
         test_data = dataset_class(
             root=data_dir,
             split="test",
             transform=test_transform,
-            download=download
+            download=download,
         )
 
-    # -------------------------------------------------------
-    # CASE 2: datasets with train=True/False (CIFAR10 style)
-    # -------------------------------------------------------
+    # CIFAR10/MNIST-style datasets
     elif "train" in params:
 
         train_data = dataset_class(
             root=data_dir,
             train=True,
             transform=train_transform,
-            download=download
+            download=download,
         )
 
         test_data = dataset_class(
             root=data_dir,
             train=False,
             transform=test_transform,
-            download=download
+            download=download,
         )
 
-    # -------------------------------------------------------
-    # CASE 3: unsupported dataset type
-    # -------------------------------------------------------
     else:
-        raise ValueError(f"Dataset {dataset_class} not supported automatically")
-
-    # -------------------------------------------------------
-    # Create class names
-    # -------------------------------------------------------
-    class_names = getattr(train_data, "classes", None)
-
-    # -------------------------------------------------------
-    # Create DataLoaders
-    # -------------------------------------------------------
-    train_dataloader = DataLoader(
-    train_data,
-    batch_size=batch_size,
-    shuffle=True,
-    num_workers=num_workers,
-    pin_memory=True
-    )
-
-    test_dataloader = DataLoader(
-        test_data,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True
-    )
+        raise ValueError(
+            f"{dataset_class.__name__} is not currently supported."
+        )
 
     print(f"[INFO] Train samples: {len(train_data)}")
     print(f"[INFO] Test samples: {len(test_data)}")
 
-    return train_dataloader, test_dataloader, class_names
+    return train_data, test_data
 
 
 # 1. Create a function to return a list of dictionaries with sample, truth label, prediction, prediction probability and prediction time
